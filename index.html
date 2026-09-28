@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ডিজিটাল ভূমি ম্যাপ | Digital Bhumi Map</title>
+  <meta name="description" content="বাংলাদেশ ডিজিটাল ভূমি রেকর্ড ও ক্যাডাস্ট্রাল মৌজা ম্যাপ পোর্টাল — PMTiles v3 ভিউয়ার" />
+
+  <!-- Google Fonts: Inter & Noto Sans Bengali for authentic government typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- MapLibre GL CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+
+  <!-- Font Awesome CDN for UI icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Chart.js for Zoning and Land Use breakdown charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans Bengali"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            govtNavy: '#0f2942',
+            govtTeal: '#527c73',
+            govtTealHover: '#42665e',
+            govtAmber: '#eeb02d',
+            govtAmberHover: '#d99c22',
+            borderGray: '#cbd5e1',
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col h-screen select-none">
+
+  <!-- ========================================================================= -->
+  <!-- Header Bar: Government of Bangladesh Land Records Portal -->
+  <!-- ========================================================================= -->
+  <header class="h-14 bg-govtNavy text-white flex items-center justify-between px-4 z-30 shadow-md border-b border-slate-700 flex-shrink-0">
+    <div class="flex items-center space-x-3">
+      <!-- National Emblem / Map Portal Logo -->
+      <div class="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center border-2 border-amber-400 shadow cursor-pointer" onclick="locateToMouzaCenter()">
+        <i class="fa-solid fa-map-location-dot text-amber-300 text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-wide flex items-center gap-2">
+          <span id="txt-app-title">ডিজিটাল ভূমি ম্যাপ</span>
+          <span class="text-xs bg-emerald-700/90 text-emerald-200 px-2 py-0.5 rounded-full font-normal hidden sm:inline-block" id="txt-app-badge">ক্যাডাস্ট্রাল সার্ভে • PMTiles v3</span>
+        </h1>
+      </div>
+    </div>
+
+    <!-- Center Navigation Links -->
+    <nav class="hidden md:flex items-center space-x-6 text-sm font-medium">
+      <a href="#" class="text-amber-400 border-b-2 border-amber-400 pb-1" id="nav-home">হোম</a>
+      <a href="#" id="nav-zoning" class="text-slate-200 hover:text-white transition">জোনিং</a>
+      <a href="#" id="nav-reports" class="text-slate-200 hover:text-white transition">রিপোর্ট</a>
+      <a href="#" id="nav-help" class="text-slate-200 hover:text-white transition">সহায়তা</a>
+    </nav>
+
+    <!-- Right Controls: Language Switcher & Profile -->
+    <div class="flex items-center space-x-3 text-xs sm:text-sm">
+      <button id="lang-btn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex items-center gap-1.5 transition cursor-pointer">
+        <i class="fa-solid fa-language text-amber-400"></i>
+        <span id="lang-label">English</span>
+      </button>
+
+      <button id="user-btn" class="hidden sm:flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded transition cursor-pointer">
+        <i class="fa-regular fa-circle-user text-slate-300"></i>
+        <span id="user-label">লগইন</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- Main Map Stage -->
+  <!-- ========================================================================= -->
+  <main class="relative flex-1 w-full h-[calc(100vh-3.5rem-1.75rem)] overflow-hidden">
+
+    <!-- High Performance MapLibre Map Container -->
+    <div id="map" class="w-full h-full"></div>
+
+    <!-- Floating Top-Left Map Tools (Zoom In, Zoom Out, Full Extent, Mouza Focus, Measure) -->
+    <div class="absolute top-4 left-4 z-20 flex flex-col space-y-2">
+      <div class="bg-white/95 backdrop-blur rounded shadow-md border border-slate-300 overflow-hidden flex flex-col">
+        <button id="btn-zoom-in" title="Zoom In" class="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 border-b border-slate-200 transition cursor-pointer">
+          <i class="fa-solid fa-plus text-sm"></i>
+        </button>
+        <button id="btn-zoom-out" title="Zoom Out" class="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 border-b border-slate-200 transition cursor-pointer">
+          <i class="fa-solid fa-minus text-sm"></i>
+        </button>
+        <button id="btn-full-extent" title="সমগ্র বাংলাদেশ (Full Extent)" class="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 border-b border-slate-200 transition cursor-pointer">
+          <i class="fa-solid fa-globe text-sm text-emerald-700"></i>
+        </button>
+        <button id="btn-mouza-center" title="মৌজা ফোকাস (Mouza Extent)" class="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 border-b border-slate-200 transition cursor-pointer">
+          <i class="fa-solid fa-crosshairs text-sm text-sky-700"></i>
+        </button>
+        <button id="btn-toggle-measure" title="দূরত্ব ও ক্ষেত্রফল পরিমাপ" class="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition cursor-pointer">
+          <i class="fa-solid fa-ruler-combined text-sm"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Top-Right Basemap Switcher Floating Widget -->
+    <div class="absolute top-4 right-4 z-20">
+      <div class="bg-white/95 backdrop-blur rounded shadow-md border border-slate-300 p-1 flex space-x-1 text-xs">
+        <button id="btn-bm-street" class="px-2.5 py-1.5 rounded font-medium text-slate-700 hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer">
+          <i class="fa-solid fa-map"></i>
+          <span id="txt-bm-street">রাস্তা ম্যাপ</span>
+        </button>
+        <button id="btn-bm-satellite" class="px-2.5 py-1.5 rounded font-medium bg-emerald-700 text-white transition flex items-center gap-1.5 cursor-pointer">
+          <i class="fa-solid fa-satellite"></i>
+          <span id="txt-bm-satellite">স্যাটেলাইট</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Search & Cadastral Drill-Down Drawer (Top-Left) -->
+    <div id="search-drawer" class="absolute top-4 left-16 z-20 w-72 sm:w-80 bg-white/95 backdrop-blur-md rounded-lg shadow-xl border border-slate-300 transition-all duration-300 flex flex-col">
+      
+      <!-- Search Drawer Header -->
+      <div class="px-3.5 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between rounded-t-lg">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-magnifying-glass text-slate-500 text-xs"></i>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-700" id="lbl-search-title">অনুসন্ধান মেনু / Search</span>
+        </div>
+        <button id="btn-toggle-drawer" title="টগল মেনু" class="text-slate-500 hover:text-slate-800 p-1 transition cursor-pointer">
+          <i id="search-drawer-icon" class="fa-solid fa-chevron-left text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Drawer Body: Dropdown Pickers -->
+      <div id="search-form-body" class="p-3.5 space-y-2.5 text-xs">
+        
+        <!-- বিভাগ (Division) -->
+        <div>
+          <label class="block text-slate-700 font-medium mb-1" id="lbl-div">বিভাগ:</label>
+          <div class="relative">
+            <select id="sel-division" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal appearance-none cursor-pointer">
+              <option value="dhaka" selected>ঢাকা (Dhaka)</option>
+              <option value="chittagong">চট্টগ্রাম (Chattogram)</option>
+              <option value="rajshahi">রাজশাহী (Rajshahi)</option>
+              <option value="khulna">খুলনা (Khulna)</option>
+              <option value="barishal">বরিশাল (Barishal)</option>
+              <option value="sylhet">সিলেট (Sylhet)</option>
+              <option value="rangpur">রংপুর (Rangpur)</option>
+              <option value="mymensingh">ময়মনসিংহ (Mymensingh)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <i class="fa-solid fa-caret-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- জেলা (District) -->
+        <div>
+          <label class="block text-slate-700 font-medium mb-1" id="lbl-dist">জেলা:</label>
+          <div class="relative">
+            <select id="sel-district" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal appearance-none cursor-pointer">
+              <option value="dhaka" selected>ঢাকা (Dhaka - DHA)</option>
+              <option value="faridpur">ফরিদপুর (Faridpur - FAR)</option>
+              <option value="kishoreganj">কিশোরগঞ্জ (Kishoreganj - KIS)</option>
+              <option value="gopalganj">গোপালগঞ্জ (Gopalganj - GOP)</option>
+              <option value="madaripur">মাদারীপুর (Madaripur - MAD)</option>
+              <option value="shariatpur">শরীয়তপুর (Shariatpur - SHA)</option>
+              <option value="tangail">টাঙ্গাইল (Tangail - TAN)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <i class="fa-solid fa-caret-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- থানা/উপজেলা (Upazila: 39 Upazilas in our dataset) -->
+        <div>
+          <label class="block text-slate-700 font-medium mb-1" id="lbl-upz">থানা/উপজেলা:</label>
+          <div class="relative">
+            <select id="sel-upazila" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal appearance-none cursor-pointer">
+              <option value="savar" selected>সাভার (Savar)</option>
+              <option value="faridpur_sadar">ফরিদপুর সদর (Faridpur Sadar)</option>
+              <option value="kishoreganj_sadar">কিশোরগঞ্জ সদর (Kishoreganj Sadar)</option>
+              <option value="arai_hazar">আড়াইহাজার (Araihazar)</option>
+              <option value="baidyer_bazar">বৈদ্যেরবাজার (Baidyer Bazar)</option>
+              <option value="bandar">বন্দর (Bandar)</option>
+              <option value="gajaria">গজারিয়া (Gajaria)</option>
+              <option value="munshiganj">মুন্সীগঞ্জ (Munshiganj)</option>
+              <option value="narsingdi_sadar">নরসিংদী সদর (Narsingdi Sadar)</option>
+              <option value="raipura">রায়পুরা (Raipura)</option>
+              <option value="tongi">টঙ্গী (Tongi)</option>
+              <option value="muksudpur">মুকসুদপুর (Muksudpur)</option>
+              <option value="tungipara">টুঙ্গিপাড়া (Tungipara)</option>
+              <option value="bhairab">ভৈরব বাজার (Bhairab Bazar)</option>
+              <option value="kuliarchar">কুলিয়ারচর (Kuliarchar)</option>
+              <option value="shariatpur">শরীয়তপুর সদর (Shariatpur Sadar)</option>
+              <option value="ghior">ঘিওর (Ghior)</option>
+              <option value="joydebpur">জয়দেবপুর (Joydebpur)</option>
+              <option value="shibpur">শিবপুর (Shibpur)</option>
+              <option value="bhanga">ভাঙ্গা (Bhanga)</option>
+              <option value="nagarkanda">নগরকান্দা (Nagarkanda)</option>
+              <option value="austagram">অষ্টগ্রাম (Austagram)</option>
+              <option value="hossainpur">হোসেনপুর (Hossainpur)</option>
+              <option value="itna">ইটনা (Itna)</option>
+              <option value="katiadi">কটিয়াদী (Katiadi)</option>
+              <option value="mithamoin">মিঠামইন (Mithamoin)</option>
+              <option value="tarail">তাড়াইল (Tarail)</option>
+              <option value="rajoir">রাজৈর (Rajoir)</option>
+              <option value="alfadanga">আলফাডাঙ্গা (Alfadanga)</option>
+              <option value="madhukhali">মধুখালী (Madhukhali)</option>
+              <option value="sadarpur">সদরপুর (Sadarpur)</option>
+              <option value="kotalipara">কোটালীপাড়া (Kotalipara)</option>
+              <option value="karimganj">করিমগঞ্জ (Karimganj)</option>
+              <option value="pakundia">পাকুন্দিয়া (Pakundia)</option>
+              <option value="mirzapur">মির্জাপুর (Mirzapur)</option>
+              <option value="nagarpur">নাগরপুর (Nagarpur)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <i class="fa-solid fa-caret-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- মৌজা (Mouza) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-slate-700 font-medium" id="lbl-mouza">মৌজা:</label>
+            <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold" id="mouza-count-badge">৭৯ টি মৌজা</span>
+          </div>
+          <input type="text" id="filter-mouza" placeholder="মৌজা নাম দিয়ে ফিল্টার করুন..." class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-800 mb-1.5 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal" />
+          <div class="relative">
+            <select id="sel-mouza" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal appearance-none cursor-pointer">
+              <option value="">মৌজা নির্বাচন করুন (৭৯ টি মৌজা)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <i class="fa-solid fa-caret-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- শিট নং (Sheet No) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-slate-700 font-medium" id="lbl-sheet">শিট নং:</label>
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium" id="sheet-count-badge">মৌজা ভিত্তিক</span>
+          </div>
+          <div class="relative">
+            <select id="sel-sheet" disabled class="w-full bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+              <option value="">মৌজা নির্বাচন করুন (Select Mouza)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+              <i class="fa-solid fa-caret-down text-xs"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- দাগ / প্লট নং (Plot / Dag No) Search & Pick -->
+        <div>
+          <label class="block text-slate-700 font-medium mb-1" id="lbl-dag">প্লট / দাগ নং অনুসন্ধান:</label>
+          <div class="flex space-x-1.5">
+            <input type="text" id="input-dag" placeholder="যেমন: ১০১ বা 101" class="flex-1 bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-govtTeal focus:border-govtTeal font-semibold" />
+            <button id="btn-search-dag" class="px-3 py-1.5 bg-govtNavy hover:bg-slate-700 text-white rounded text-xs font-medium transition cursor-pointer">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Characteristic Portal Buttons: Land Use & Zoning -->
+        <div class="pt-2 space-y-2">
+          <!-- Button 1: ভূমি ব্যবহারের সারাংশ -->
+          <button id="btn-open-landuse" class="w-full py-2 px-3 bg-govtTeal hover:bg-govtTealHover text-white font-medium rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs cursor-pointer">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span id="btn-land-use-text">ভূমি ব্যবহারের সারাংশ</span>
+          </button>
+
+          <!-- Button 2: ভূমি জোনিং সারাংশ -->
+          <button id="btn-open-zoning" class="w-full py-2 px-3 bg-govtAmber hover:bg-govtAmberHover text-slate-900 font-bold rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs cursor-pointer">
+            <i class="fa-solid fa-layer-group"></i>
+            <span id="btn-zoning-text">ভূমি জোনিং সারাংশ</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Floating Top-Right Plot Detail Card / Inspector -->
+    <div id="plot-detail-card" class="absolute top-16 right-4 z-20 w-80 sm:w-88 bg-white/95 backdrop-blur-md rounded-lg shadow-2xl border border-slate-300 hidden transition-all duration-300 flex-col overflow-hidden">
+      
+      <!-- Card Header -->
+      <div class="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <h3 class="font-bold text-sm text-slate-800" id="pcard-title">প্লট বিস্তারিত তথ্য</h3>
+        </div>
+        <button id="btn-close-pcard" class="text-slate-400 hover:text-slate-700 transition cursor-pointer">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Card Content -->
+      <div class="p-4 space-y-3 max-h-[75vh] overflow-y-auto custom-scroll text-xs">
+        
+        <!-- Highlight Metric -->
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-3 rounded-lg border border-emerald-200 flex items-center justify-between">
+          <div>
+            <span class="text-slate-500 block text-[11px]" id="pcard-dagno-lbl">দাগ নম্বর</span>
+            <span class="text-xl font-extrabold text-emerald-800" id="card-dag-no">১০১</span>
+          </div>
+          <div class="text-right">
+            <span class="text-slate-500 block text-[11px]" id="pcard-class-lbl">জমির শ্রেণি</span>
+            <span class="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-200/80 text-emerald-900" id="card-land-class">নাল</span>
+          </div>
+        </div>
+
+        <!-- Primary Attribute List (Cadastre + Land Use starting from maj_class) -->
+        <div class="space-y-1.5 border-b border-slate-200 pb-3">
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-mouza-lbl">মৌজা ও জে.এল:</span>
+            <span class="font-medium text-slate-800" id="card-mouza">রাজাশন (জেএল: ৩৭)</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-sheet-lbl">নকশা শিট নং:</span>
+            <span class="font-medium text-slate-800" id="card-sheet">০১</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-upz-lbl">উপজেলা ও জেলা:</span>
+            <span class="font-medium text-slate-800" id="card-location">সাভার, ঢাকা</span>
+          </div>
+          <!-- Land Use Data starting from Maj Class -->
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-majclass-lbl">প্রধান ভূমি শ্রেণি (Maj Class):</span>
+            <span class="font-semibold text-emerald-800" id="card-maj-class">—</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-subclass-lbl">উপ-ভূমি শ্রেণি (Sub Class):</span>
+            <span class="font-medium text-slate-800" id="card-sub-class">—</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500" id="pcard-crop-lbl">ফসলের বিন্যাস (Crop Pattern):</span>
+            <span class="font-medium text-slate-800 text-[11px]" id="card-crop-pattern">—</span>
+          </div>
+        </div>
+
+        <!-- Area Calculations in Authentic Bangladeshi Units -->
+        <div>
+          <h4 class="font-bold text-slate-700 mb-2 flex items-center justify-between" id="pcard-area-title">
+            <span>জমির পরিমাণ ও হিসাব</span>
+            <span class="text-[10px] text-slate-400 font-normal">স্বয়ংক্রিয় জিওডেসিক হিসাব</span>
+          </h4>
+
+          <div class="grid grid-cols-2 gap-2 text-center">
+            <!-- Shotok / Decimal -->
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <span class="block text-[10px] text-slate-500" id="u-shotok">শতক / ডেসিমাল</span>
+              <span class="text-sm font-bold text-slate-900" id="calc-shotok">18.42</span>
+            </div>
+
+            <!-- Katha -->
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <span class="block text-[10px] text-slate-500" id="u-katha">কাঠা</span>
+              <span class="text-sm font-bold text-slate-900" id="calc-katha">11.15</span>
+            </div>
+
+            <!-- Bigha -->
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <span class="block text-[10px] text-slate-500" id="u-bigha">বিঘা</span>
+              <span class="text-sm font-bold text-slate-900" id="calc-bigha">0.56</span>
+            </div>
+
+            <!-- Acre -->
+            <div class="p-2 bg-slate-50 rounded border border-slate-200">
+              <span class="block text-[10px] text-slate-500" id="u-acre">একর</span>
+              <span class="text-sm font-bold text-slate-900" id="calc-acre">0.18</span>
+            </div>
+          </div>
+
+          <!-- Secondary Square units -->
+          <div class="mt-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-200 flex justify-between">
+            <span>বর্গমিটার: <strong class="text-slate-800" id="calc-sqm">745.5 m²</strong></span>
+            <span>বর্গফুট: <strong class="text-slate-800" id="calc-sqft">8,024.5 ft²</strong></span>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="pt-2">
+          <button id="btn-print-slip" class="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white rounded font-medium transition flex items-center justify-center space-x-2 cursor-pointer">
+            <i class="fa-solid fa-print text-xs"></i>
+            <span id="txt-print-slip">রিপোর্ট প্রিন্ট / ডাউনলোড</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Floating Measurement HUD (Bottom Center Pill) -->
+    <div id="measure-hud" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 text-white px-4 py-2.5 rounded-full shadow-2xl backdrop-blur-md flex items-center space-x-3 text-xs border border-slate-700 hidden">
+      <div class="flex items-center space-x-1.5 text-amber-400">
+        <i class="fa-solid fa-pen-ruler"></i>
+        <span class="font-bold" id="measure-title">পরিমাপ মোড সক্রিয়</span>
+      </div>
+      <span class="text-slate-500">|</span>
+      <span id="measure-instruction" class="text-slate-300">ম্যাপে ড্র টুল দিয়ে রেখা বা বহুভুজ আঁকুন</span>
+      <span id="measure-result" class="font-mono text-emerald-400 font-bold ml-2"></span>
+      <button id="btn-clear-measure" title="পরিমাপ মুছুন" class="ml-2 text-slate-400 hover:text-white transition cursor-pointer">
+        <i class="fa-solid fa-circle-xmark"></i>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- Footer Status Bar -->
+  <!-- ========================================================================= -->
+  <footer class="h-7 bg-slate-100 border-t border-slate-300 text-slate-600 px-4 text-[11px] flex items-center justify-between z-30 select-none flex-shrink-0">
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="font-medium text-slate-700" id="status-live">সিস্টেম সক্রিয়</span>
+      </div>
+      <span class="text-slate-300">|</span>
+      <div>
+        <span class="text-slate-500" id="lbl-mouse-coords">অক্ষাংশ/দ্রাঘিমাংশ:</span>
+        <span class="font-mono font-medium text-slate-800 ml-1" id="mouse-coords">23.6861° N, 90.3558° E</span>
+      </div>
+      <span class="text-slate-300 hidden sm:inline">|</span>
+      <div class="hidden sm:inline">
+        <span class="text-slate-500" id="lbl-scale">স্কেল:</span>
+        <span class="font-medium text-slate-800 ml-1" id="current-zoom">Zoom 10.0 (ক্যাডাস্ট্রাল সার্ভে ভিউ)</span>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-3 text-slate-500">
+      <span id="txt-footer-dept">ভূমি মন্ত্রণালয়, গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</span>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- Modal 1: Land Use Breakdown (Chart.js Donut) -->
+  <!-- ========================================================================= -->
+  <div id="modal-landuse" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      <div class="px-5 py-3.5 bg-govtTeal text-white flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-chart-pie"></i>
+          <h3 class="font-bold text-sm" id="modal-landuse-title">মৌজা ভূমি ব্যবহারের সামগ্রিক সারাংশ</h3>
+        </div>
+        <button id="btn-close-landuse" class="text-teal-200 hover:text-white transition cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="bg-slate-50 p-3 rounded border border-slate-200 flex justify-between items-center">
+          <div>
+            <span class="text-slate-500 block" id="lbl-selected-mouza">নির্বাচিত অঞ্চল</span>
+            <span class="text-sm font-bold text-slate-800" id="txt-lu-mouza-name">৩৯ উপজেলা মৌজা ক্লাস্টার</span>
+          </div>
+          <div class="text-right">
+            <span class="text-slate-500 block" id="lbl-total-plots-count">মোট প্লট সংখ্যা</span>
+            <span class="text-sm font-bold text-govtTeal">৯৬,৩০৪ টি দাগ</span>
+          </div>
+        </div>
+
+        <!-- Canvas for Chart -->
+        <div class="h-44 w-full flex items-center justify-center">
+          <canvas id="chart-landuse"></canvas>
+        </div>
+
+        <!-- Category Progress Breakdown -->
+        <div class="space-y-2">
+          <div>
+            <div class="flex justify-between text-slate-700 font-medium mb-1">
+              <span id="cat-agri">কৃষি জমি (নাল)</span>
+              <span>৫৪% (৫১,৮২৭ টি প্লট)</span>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-emerald-600 h-full rounded-full" style="width: 54%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-slate-700 font-medium mb-1">
+              <span id="cat-homestead">আবাসিক ও ভিটি জমি</span>
+              <span>২৬% (২৫,০৩৯ টি প্লট)</span>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-amber-500 h-full rounded-full" style="width: 26%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-slate-700 font-medium mb-1">
+              <span id="cat-water">জলাশয় ও পুকুর</span>
+              <span>১২% (১১,৫৫৬ টি প্লট)</span>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-sky-500 h-full rounded-full" style="width: 12%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex justify-between text-slate-700 font-medium mb-1">
+              <span id="cat-commercial">বাণিজ্যিক ও অন্যান্য</span>
+              <span>৮% (৭,৬৮২ টি প্লট)</span>
+            </div>
+            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div class="bg-purple-500 h-full rounded-full" style="width: 8%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end">
+          <button id="btn-close-landuse-bottom" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium transition cursor-pointer">
+            বন্ধ করুন
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- Modal 2: Land Zoning Analysis (Chart.js Bar) -->
+  <!-- ========================================================================= -->
+  <div id="modal-zoning" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      <div class="px-5 py-3.5 bg-govtAmber text-slate-900 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-layer-group"></i>
+          <h3 class="font-bold text-sm" id="modal-zoning-title">ভূমি জোনিং মাস্টার প্ল্যান বিশ্লেষণ</h3>
+        </div>
+        <button id="btn-close-zoning" class="text-slate-800 hover:text-black transition cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="bg-amber-50/80 p-3 rounded border border-amber-200 text-amber-900">
+          <p class="font-medium" id="txt-zoning-desc">জাতীয় ভূমি জোনিং নীতিমালা অনুযায়ী এই অঞ্চলটি <strong>কৃষি ও মিশ্র আবাসিক জোন (Zone-B2)</strong> এর আওতাভুক্ত।</p>
+        </div>
+
+        <!-- Canvas for Zoning Chart -->
+        <div class="h-44 w-full flex items-center justify-center">
+          <canvas id="chart-zoning"></canvas>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <span class="block text-slate-500 text-[10px]" id="lbl-building-height">অনুমোদিত সর্বোচ্চ ভবন উচ্চতা</span>
+            <span class="font-bold text-slate-800 text-sm">G + 6 তলা</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <span class="block text-slate-500 text-[10px]" id="lbl-env-sensitivity">পরিবেশগত সংবেদনশীলতা</span>
+            <span class="font-bold text-emerald-700 text-sm" id="txt-env-safety">নিম্ন / নিরাপদ</span>
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end">
+          <button id="btn-close-zoning-bottom" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium transition cursor-pointer">
+            বন্ধ করুন
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- Printable Cadastral Inspection Slip (window.print()) -->
+  <!-- ========================================================================= -->
+  <div id="printable-report" class="hidden p-8 font-sans max-w-3xl mx-auto">
+    <div class="text-center border-b-2 border-slate-800 pb-4 mb-4">
+      <h2 class="text-xl font-bold">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</h2>
+      <h3 class="text-lg font-semibold">ডিজিটাল ভূমি রেকর্ড ও মৌজা ম্যাপ পোর্টাল</h3>
+      <p class="text-xs text-slate-600 mt-1">ক্যাডাস্ট্রাল প্লট পরিদর্শন ও তথ্যের সারসংক্ষেপ</p>
+    </div>
+    <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+      <div>
+        <p><strong>বিভাগ:</strong> <span id="print-div">ঢাকা</span></p>
+        <p><strong>জেলা:</strong> <span id="print-dist">ঢাকা</span></p>
+        <p><strong>উপজেলা:</strong> <span id="print-upz">সাভার</span></p>
+      </div>
+      <div>
+        <p><strong>মৌজা:</strong> <span id="print-mouza">রাজাশন (জেএল: ৩৭)</span></p>
+        <p><strong>নকশা শিট নং:</strong> <span id="print-sheet">০১</span></p>
+        <p><strong>দাগ নম্বর:</strong> <span id="print-dag-no">১০১</span></p>
+      </div>
+    </div>
+    <div class="border border-slate-400 p-4 rounded mb-6">
+      <h4 class="font-bold mb-2">জমির পরিমাপ ও শ্রেণি বিবরণ:</h4>
+      <p>জমির শ্রেণি (Mouza): <span id="print-land-class">নাল</span></p>
+      <p>প্রধান ভূমি শ্রেণি (Landuse Maj Class): <span id="print-maj-class">—</span></p>
+      <p>উপ-ভূমি শ্রেণি (Sub Class): <span id="print-sub-class">—</span></p>
+      <p>ফসলের ধরন (Crop Pattern): <span id="print-crop-pattern">—</span></p>
+      <p>শতক / ডেসিমাল: <span id="print-shotok">18.42</span></p>
+      <p>কাঠা: <span id="print-katha">11.15</span></p>
+      <p>বিঘা: <span id="print-bigha">0.56</span></p>
+      <p>মোট বর্গফুট: <span id="print-sqft">8,024.5 ft²</span></p>
+    </div>
+    <div class="text-xs text-slate-500 text-center mt-12 border-t pt-4">
+      এটি একটি কম্পিউটার জেনারেটেড ডিজিটাল পরিদর্শন স্লিপ। সিস্টেম যাচাইকরণ আইডি: DL-2026-99382 • PMTiles Cadastral Platform
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-10 right-5 z-50 bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg text-xs flex items-center space-x-2 transition-opacity duration-300 opacity-0 pointer-events-none">
+    <i class="fa-solid fa-circle-info text-amber-400"></i>
+    <span id="toast-msg">বার্তা</span>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

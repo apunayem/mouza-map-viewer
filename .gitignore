@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Production build output
+dist/
+
+# Raw GIS Geodatabases (35 Upazilas raw GDBs, 13 GB)
+data/
+
+# Pre-generated mouzas vector archive (26 GB, hosted on Cloudflare R2)
+public/data/mouzas/
+public/data/cache_mouzas/
+
+# Tile temp caches
+public/tiles/*.tmp*
+
+# Environment local files
+.env
+.env.local
+.env.*.local
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
